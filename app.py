@@ -12,7 +12,7 @@ from pathlib import Path
 # ----------------------------------------------------
 # 1. 기본 설정 및 테마/폰트 적용
 # ----------------------------------------------------
-st.set_page_config(page_title="무역 분석 대시보드", page_icon="🌍", layout="wide")
+st.set_page_config(page_title="무역 분석 대시보드", layout="wide")
 
 @st.cache_resource
 def get_korean_font():
@@ -35,7 +35,7 @@ def get_korean_font():
 
 font_name = get_korean_font()
 
-# 깔끔한 Seaborn 테마 및 폰트 동시 적용
+# 차분한 디자인을 위한 테마 및 폰트 설정
 sns.set_theme(
     style="white", 
     rc={"font.family": font_name, "axes.unicode_minus": False}
@@ -90,17 +90,17 @@ except Exception as e:
     st.stop()
 
 # ----------------------------------------------------
-# 3. 사이드바 필터 (UI 개선)
+# 3. 사이드바 필터 
 # ----------------------------------------------------
 with st.sidebar:
-    st.title("⚙️ 설정 및 필터")
+    st.title("설정 및 필터")
     st.markdown("분석할 조건을 선택하세요.")
     
     all_countries = sorted(df['exporter_name'].dropna().unique().tolist())
     default_selection = all_countries[:min(10, len(all_countries))]
-    selected_countries = st.multiselect("📍 국가 선택", options=all_countries, default=default_selection)
+    selected_countries = st.multiselect("국가 선택", options=all_countries, default=default_selection)
     
-    selected_grades = st.multiselect("📊 무역액 등급", options=['대', '중', '소'], default=['대', '중', '소'])
+    selected_grades = st.multiselect("무역액 등급", options=['대', '중', '소'], default=['대', '중', '소'])
 
 filtered_df = df.copy()
 if selected_countries:
@@ -111,16 +111,15 @@ if selected_grades:
 # ----------------------------------------------------
 # 4. 메인 대시보드 화면
 # ----------------------------------------------------
-st.title("🌍 무역 분석 대시보드")
+st.title("무역 분석 대시보드")
 st.markdown("선택된 국가와 무역액 등급에 따른 수출입 흐름과 분포를 분석합니다.")
 
-# 결측치 정보를 Expander(토글)로 숨겨 UI를 깔끔하게 유지
-with st.expander("📋 데이터 결측치 현황 확인하기 (baci_85_sample.csv)"):
+with st.expander("데이터 결측치 현황 확인하기 (baci_85_sample.csv)"):
     st.dataframe(missing_df.T, use_container_width=True)
 
 st.divider()
 
-# 주요 통계 지표 (디자인 강조)
+# 주요 통계 지표 
 total_deals = len(filtered_df)
 total_export_value = filtered_df['v'].sum() * 1000
 
@@ -132,11 +131,11 @@ with col2:
 
 st.divider()
 
-# 시각화 영역 (히트맵 & 원형 그래프)
+# 시각화 영역 
 col3, col4 = st.columns([1.2, 1])
 
 with col3:
-    st.subheader("🔥 국가 × 연도 무역액 히트맵")
+    st.subheader("국가 × 연도 무역액 히트맵")
     top8_countries = filtered_df.groupby('exporter_name')['v'].sum().nlargest(8).index
     heatmap_data = filtered_df[filtered_df['exporter_name'].isin(top8_countries)]
     
@@ -144,39 +143,39 @@ with col3:
         pivot_heat = heatmap_data.pivot_table(index='exporter_name', columns='t', values='v', aggfunc='sum', fill_value=0)
         
         fig, ax = plt.subplots(figsize=(8, 6))
-        # 모던한 색상(Blues)과 테두리 추가로 세련되게 변경
+        
+        # 차분한 블루톤(Blues) 히트맵 적용
         sns.heatmap(pivot_heat, annot=True, fmt=".0f", cmap="Blues", ax=ax, 
                     linewidths=0.5, cbar_kws={"shrink": 0.8})
         
-        # Y축 가로 출력 및 라벨 디자인 다듬기
         ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
-        ax.set_ylabel("") # 불필요한 라벨 제거
+        ax.set_ylabel("") 
         ax.set_xlabel("연도", labelpad=10)
         st.pyplot(fig)
     else:
         st.info("조건에 맞는 데이터가 부족합니다.")
 
 with col4:
-    st.subheader("🍩 무역액 등급분포")
+    st.subheader("무역액 등급분포")
     if not filtered_df.empty:
         grade_counts = filtered_df['trade_grade'].value_counts().reindex(['대', '중', '소']).fillna(0)
         
         fig, ax = plt.subplots(figsize=(6, 6))
-        colors = ['#5dade2', '#f4d03f', '#ec7063'] # 파스텔/모던 톤
         
-        # 세련된 도넛(Donut) 형태의 원형 그래프 적용
+        # 블루톤 그라데이션 컬러 팔레트 적용 (진한 파랑 -> 연한 파랑)
+        blue_palette = ['#1f77b4', '#6baed6', '#c6dbef'] 
+        
         wedges, texts, autotexts = ax.pie(
             grade_counts.values, 
             labels=grade_counts.index, 
             autopct='%1.1f%%', 
             startangle=140, 
-            colors=colors,
+            colors=blue_palette,
             pctdistance=0.75,
             textprops={'fontsize': 12, 'weight': 'bold'},
             wedgeprops={'edgecolor': 'white', 'linewidth': 2, 'width': 0.4}
         )
         
-        # 중앙에 총 건수 텍스트 추가
         ax.text(0, 0, f"총 {int(grade_counts.sum()):,}건", ha='center', va='center', fontsize=13, fontweight='bold')
         
         st.pyplot(fig)
@@ -186,7 +185,7 @@ with col4:
 st.divider()
 
 # 교차표 영역
-st.subheader("📑 상위 5개국 × 무역액 등급 교차표")
+st.subheader("상위 5개국 × 무역액 등급 교차표")
 top5_countries = filtered_df.groupby('exporter_name')['v'].sum().nlargest(5).index
 cross_data = filtered_df[filtered_df['exporter_name'].isin(top5_countries)]
 
