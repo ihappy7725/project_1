@@ -99,7 +99,7 @@ with col2:
 
 st.divider()
 
-# 시각화 영역 (Plotly 적용 및 호버 라벨 디자인 개선)
+# 시각화 영역 
 col3, col4 = st.columns([1.2, 1])
 
 with col3:
@@ -117,11 +117,13 @@ with col3:
             labels=dict(x="연도", y="국가명", color="무역액(USD)")
         )
         
+        # xgap, ygap 옵션으로 셀 사이에 5px의 투명한 여백(버튼 질감) 추가
         fig_heat.update_traces(
-            hovertemplate="<b>국가명:</b> %{y}<br><b>연도:</b> %{x}<br><b>무역액:</b> $%{z:,.0f}<extra></extra>"
+            hovertemplate="<b>국가명:</b> %{y}<br><b>연도:</b> %{x}<br><b>무역액:</b> $%{z:,.0f}<extra></extra>",
+            xgap=5, 
+            ygap=5
         )
         
-        # 툴팁 디자인 은은하게(반투명 배경, 테두리 제거) 적용
         fig_heat.update_layout(
             margin=dict(l=0, r=0, t=10, b=0),
             hoverlabel=dict(
@@ -149,9 +151,11 @@ with col4:
             color_discrete_sequence=blue_palette
         )
         
+        # pull 옵션을 사용하여 각 파이 조각을 살짝 떼어내어 독립된 질감 부여
         fig_pie.update_traces(
             textinfo='none', 
-            hovertemplate="<b>등급:</b> %{label}<br><b>건수:</b> %{value:,.0f}건<br><b>비율:</b> %{percent}<extra></extra>"
+            hovertemplate="<b>등급:</b> %{label}<br><b>건수:</b> %{value:,.0f}건<br><b>비율:</b> %{percent}<extra></extra>",
+            pull=[0.03] * len(grade_counts) 
         )
         
         fig_pie.add_annotation(
@@ -160,7 +164,6 @@ with col4:
             font=dict(size=16)
         )
         
-        # 툴팁 디자인 은은하게 적용
         fig_pie.update_layout(
             margin=dict(l=0, r=0, t=10, b=0),
             showlegend=True,
