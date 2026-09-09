@@ -2,25 +2,43 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import seaborn as sns
 import platform
+import os
+import urllib.request
 from pathlib import Path
 
 # ----------------------------------------------------
-# 1. 기본 설정 및 한글 폰트 적용
+# 1. 기본 설정 및 한글 폰트 자동 적용 (로컬 & 클라우드 배포 호환)
 # ----------------------------------------------------
 st.set_page_config(page_title="무역 분석 대시보드", layout="wide")
 
-# OS별 한글 폰트 설정 (깨짐 방지)
-system_name = platform.system()
-if system_name == 'Windows':
-    plt.rc('font', family='Malgun Gothic')
-elif system_name == 'Darwin':  # Mac
-    plt.rc('font', family='AppleGothic')
-else:  # Linux (Streamlit Cloud 환경 포함)
-    plt.rc('font', family='NanumGothic')
+def set_korean_font():
+    system_name = platform.system()
+    font_name = None
 
-plt.rc('axes', unicode_minus=False)
+    if system_name == 'Windows':
+        font_name = 'Malgun Gothic'
+    elif system_name == 'Darwin':  # Mac
+        font_name = 'AppleGothic'
+    else:  # Linux (Streamlit Cloud 배포 환경 포함)
+        nanum_fonts = [f.name for f in fm.fontManager.ttflist if 'Nanum' in f.name]
+        if nanum_fonts:
+            font_name = nanum_fonts[0]
+        else:
+            # 폰트가 설치되어 있지 않으면 나눔고딕 TTF 자동 다운로드 후 등록
+            font_path = "NanumGothic.ttf"
+            if not os.path.exists(font_path):
+                url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
+                urllib.request.urlretrieve(url, font_path)
+            fm.fontManager.addfont(font_path)
+            font_name = fm.FontProperties(fname=font_path).get_name()
+
+    plt.rc('font', family=font_name)
+    plt.rc('axes', unicode_minus=False)
+
+set_korean_font()
 
 # ----------------------------------------------------
 # 2. 데이터 로드 및 전처리
@@ -29,34 +47,33 @@ plt.rc('axes', unicode_minus=False)
 def load_data():
     base_dir = Path(__file__).resolve().parent if "__file__" in locals() else Path.cwd()
     
-    # 파일 탐색 (루트 또는 dummy 폴더 내 위치 대응)
+    # 루트 폴더 및 하위 폴더(dummy 등) 자동 탐색
     baci_file = next((p for p in [base_dir / "baci_85_sample.csv", base_dir / "dummy" / "baci_85_sample.csv"] if p.exists()), None)
     country_file = next((p for p in [base_dir / "country_codes_sample.csv", base_dir / "dummy" / "country_codes_sample.csv"] if p.exists()), None)
 
     if not baci_file or not country_file:
-        raise FileNotFoundError("CSV 데이터 파일을 찾을 수 없습니다. 파일명을 확인해주세요.")
+        raise FileNotFoundError("CSV 파일을 찾을 수 없습니다. baci_85_sample.csv 및 country_codes_sample.csv 파일 위치를 확인하세요.")
 
     baci_df = pd.read_csv(baci_file)
     country_df = pd.read_csv(country_file)
 
-    # 결측치 요약 정보 저장
+    # 2-1. 결측치 요약 정보 생성
     missing_summary = baci_df.isnull().sum().to_frame(name="결측치 수")
 
-    # 컬럼명 소문자 통일 및 공백 제거
+    # 2-2. 컬럼명 정규화 (소문자 변환 및 공백 제거)
     baci_df.columns = [c.lower().strip() for c in baci_df.columns]
     country_df.columns = [c.lower().strip() for c in country_df.columns]
 
-    # 국가 코드 테이블 컬럼 탐색
+    # 2-3. 국가 코드 테이블 매핑 컬럼 자동 식별
     c_code_col = next((c for c in country_df.columns if any(k in c for k in ['country_code', 'code', 'id', 'iso', 'c_code'])), country_df.columns[0])
     c_name_col = next((c for c in country_df.columns if any(k in c for k in ['country_name', 'name', 'country', 'c_name'])), country_df.columns[1])
 
-    # 정수형(int)으로 정규화하여 딕셔너리 매핑
+    # 정수(int)형 기준 매핑 딕셔너리 생성
     country_df[c_code_col] = pd.to_numeric(country_df[c_code_col], errors='coerce')
     country_df = country_df.dropna(subset=[c_code_col])
     mapping_dict = dict(zip(country_df[c_code_col].astype(int), country_df[c_name_col].astype(str)))
 
-    # BACI 데이터: 한국(410) 단일 수출 데이터셋 대비
-    # i(수출국)의 고유값이 1개이고 j(수입국/상대국)가 다양할 경우 j를 기준으로 매핑
+    # 2-4. 국가 컬럼 지정 (한국 410 단일 데이터 대비: i가 단일값이면 수입국/상대국 j 기준 적용)
     target_country_col = 'i'
     if 'j' in baci_df.columns and baci_df['i'].nunique() == 1:
         target_country_col = 'j'
@@ -64,15 +81,14 @@ def load_data():
     baci_df['country_num'] = pd.to_numeric(baci_df[target_country_col], errors='coerce')
     baci_df['exporter_name'] = baci_df['country_num'].map(mapping_dict).fillna("미식별(" + baci_df[target_country_col].astype(str) + ")")
 
-    # 무역액 수치 변환
+    # 2-5. 무역액 수치 변환
     baci_df['v'] = pd.to_numeric(baci_df['v'], errors='coerce').fillna(0)
 
-    # 무역액 등급 (거래액 기준 3분위수 대/중/소 구분)
+    # 2-6. 무역액 등급 (대, 중, 소 3분위수 구분)
     try:
         labels = ['소', '중', '대']
         baci_df['trade_grade'] = pd.qcut(baci_df['v'], q=3, labels=labels, duplicates='drop')
     except Exception:
-        # 데이터가 너무 적거나 중복값이 많을 경우 pd.cut으로 폴백
         baci_df['trade_grade'] = pd.cut(baci_df['v'], bins=3, labels=['소', '중', '대'])
 
     return baci_df, missing_summary
@@ -146,7 +162,7 @@ with col3:
         ax.set_xlabel("연도")
         st.pyplot(fig)
     else:
-        st.info("표시할 조건의 데이터가 없습니다.")
+        st.info("표시할 데이터가 없습니다.")
 
 with col4:
     st.subheader("📦 무역액 등급분포")
@@ -164,7 +180,7 @@ with col4:
             
         st.pyplot(fig)
     else:
-        st.info("표시할 조건의 데이터가 없습니다.")
+        st.info("표시할 데이터가 없습니다.")
 
 st.markdown("---")
 
@@ -177,7 +193,7 @@ cross_data = filtered_df[filtered_df['exporter_name'].isin(top5_countries)]
 if not cross_data.empty:
     col5, col6 = st.columns(2)
     
-    # 원본 건수
+    # 1) 원본 건수
     ct_counts = pd.crosstab(
         cross_data['exporter_name'], 
         cross_data['trade_grade'], 
@@ -185,7 +201,7 @@ if not cross_data.empty:
         margins_name="합계"
     )
     
-    # 정규화 비율 (행 기준 백분율)
+    # 2) 정규화 비율 (행 기준 백분율)
     ct_norm = pd.crosstab(
         cross_data['exporter_name'], 
         cross_data['trade_grade'], 
