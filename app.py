@@ -3,11 +3,21 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 from pathlib import Path
+import matplotlib.colors as mcolors
 
 # ----------------------------------------------------
-# 1. 기본 설정
+# 1. 기본 설정 및 전체 배경색 적용 (은은한 소라색)
 # ----------------------------------------------------
 st.set_page_config(page_title="무역 분석 대시보드", page_icon="🚢", layout="wide")
+
+# 전체 배경을 은은한 소라색(#F0F8FF - AliceBlue)으로 변경하는 CSS
+st.markdown("""
+<style>
+    .stApp {
+        background-color: #F0F8FF;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # ----------------------------------------------------
 # 2. 데이터 로드 및 전처리
@@ -87,20 +97,28 @@ with st.expander("📋 데이터 결측치 현황 확인하기 (baci_85_sample.c
 
 st.divider()
 
-# 주요 통계 지표 
+# 주요 통계 지표 (하단 부가설명 delta 제거)
 total_deals = len(filtered_df)
 total_export_value = filtered_df['v'].sum() * 1000
 
 col1, col2 = st.columns(2)
 with col1:
-    st.metric(label="📦 총 거래건수", value=f"{total_deals:,} 건", delta="전체 기간 합산")
+    st.metric(label="📦 총 거래건수", value=f"{total_deals:,} 건")
 with col2:
-    st.metric(label="💰 총 무역액 (USD)", value=f"${total_export_value:,.0f}", delta="단위: 달러")
+    st.metric(label="💰 총 무역액 (USD)", value=f"${total_export_value:,.0f}")
 
 st.divider()
 
-# 시각화 영역 
+# 시각화 영역 (파스텔 톤 적용)
 col3, col4 = st.columns([1.2, 1])
+
+# 커스텀 파스텔 컬러맵 (연노랑 -> 파스텔 연두 -> 파스텔 분홍)
+pastel_colorscale = [
+    [0.0, '#FFFACD'], # LemonChiffon (연노랑)
+    [0.5, '#E0FFFF'], # LightCyan (연하늘/연두 느낌)
+    [1.0, '#FFB6C1']  # LightPink (파스텔 분홍)
+]
+pastel_pie_colors = ['#FFB6C1', '#FFFACD', '#E0FFFF'] # 파이 차트용 (대, 중, 소 순서 매칭)
 
 with col3:
     st.subheader("🌍 국가 × 연도 무역액 히트맵")
@@ -112,25 +130,28 @@ with col3:
         
         fig_heat = px.imshow(
             pivot_heat, 
-            color_continuous_scale='Blues',
+            color_continuous_scale=pastel_colorscale,
             aspect="auto",
             labels=dict(x="연도", y="국가명", color="무역액(USD)")
         )
         
-        # xgap, ygap 옵션으로 셀 사이에 5px의 투명한 여백(버튼 질감) 추가
+        # 간격(xgap, ygap)을 제거하여 마우스 오버 시 끊기지 않고 부드럽게 이어지도록 설정
         fig_heat.update_traces(
             hovertemplate="<b>국가명:</b> %{y}<br><b>연도:</b> %{x}<br><b>무역액:</b> $%{z:,.0f}<extra></extra>",
-            xgap=5, 
-            ygap=5
+            xgap=0, 
+            ygap=0
         )
         
+        # 툴팁을 세련된 반투명 배경으로 설정
         fig_heat.update_layout(
             margin=dict(l=0, r=0, t=10, b=0),
+            paper_bgcolor='rgba(0,0,0,0)', # 배경 투명화(소라색 비침)
+            plot_bgcolor='rgba(0,0,0,0)',
             hoverlabel=dict(
-                bgcolor="rgba(255, 255, 255, 0.85)", 
+                bgcolor="rgba(255, 255, 255, 0.75)", 
                 font_size=13,
                 font_color="#333333",
-                bordercolor="rgba(255, 255, 255, 0)"
+                bordercolor="rgba(200, 200, 200, 0.5)"
             )
         )
         st.plotly_chart(fig_heat, use_container_width=True)
@@ -142,20 +163,17 @@ with col4:
     if not filtered_df.empty:
         grade_counts = filtered_df['trade_grade'].value_counts().reindex(['대', '중', '소']).fillna(0)
         
-        blue_palette = ['#08519c', '#3182bd', '#9ecae1'] 
-        
         fig_pie = px.pie(
             names=grade_counts.index,
             values=grade_counts.values,
             hole=0.45,
-            color_discrete_sequence=blue_palette
+            color_discrete_sequence=pastel_pie_colors
         )
         
-        # pull 옵션을 사용하여 각 파이 조각을 살짝 떼어내어 독립된 질감 부여
         fig_pie.update_traces(
             textinfo='none', 
             hovertemplate="<b>등급:</b> %{label}<br><b>건수:</b> %{value:,.0f}건<br><b>비율:</b> %{percent}<extra></extra>",
-            pull=[0.03] * len(grade_counts) 
+            marker=dict(line=dict(color='#F0F8FF', width=2)) # 선 색상을 배경 소라색과 맞춰 분리감 부여
         )
         
         fig_pie.add_annotation(
@@ -166,13 +184,15 @@ with col4:
         
         fig_pie.update_layout(
             margin=dict(l=0, r=0, t=10, b=0),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
             hoverlabel=dict(
-                bgcolor="rgba(255, 255, 255, 0.85)", 
+                bgcolor="rgba(255, 255, 255, 0.75)", 
                 font_size=13,
                 font_color="#333333",
-                bordercolor="rgba(255, 255, 255, 0)"
+                bordercolor="rgba(200, 200, 200, 0.5)"
             )
         )
         st.plotly_chart(fig_pie, use_container_width=True)
@@ -192,12 +212,15 @@ if not cross_data.empty:
     ct_counts = pd.crosstab(cross_data['exporter_name'], cross_data['trade_grade'], margins=True, margins_name="총계")
     ct_norm = pd.crosstab(cross_data['exporter_name'], cross_data['trade_grade'], normalize='index') * 100
     
+    # 판다스 테이블에도 옅은 분홍색(Pastel1 등) 톤의 배경 그라데이션 적용
+    pastel_cmap = mcolors.LinearSegmentedColormap.from_list("pastel_cmap", ["#ffffff", "#FFB6C1"])
+    
     with col5:
         st.markdown("**1. 원본 거래건수** (단위: 건)")
-        st.dataframe(ct_counts.style.background_gradient(cmap='Blues', axis=None), use_container_width=True)
+        st.dataframe(ct_counts.style.background_gradient(cmap=pastel_cmap, axis=None), use_container_width=True)
         
     with col6:
         st.markdown("**2. 등급별 비율** (단위: %)")
-        st.dataframe(ct_norm.style.format("{:.1f}%").background_gradient(cmap='Blues', axis=None), use_container_width=True)
+        st.dataframe(ct_norm.style.format("{:.1f}%").background_gradient(cmap=pastel_cmap, axis=None), use_container_width=True)
 else:
     st.info("데이터가 없습니다.")
