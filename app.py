@@ -5,29 +5,9 @@ import plotly.express as px
 from pathlib import Path
 
 # ----------------------------------------------------
-# 1. 기본 설정 및 Fade-in 애니메이션 적용
+# 1. 기본 설정
 # ----------------------------------------------------
 st.set_page_config(page_title="무역 분석 대시보드", page_icon="🚢", layout="wide")
-
-# 부드럽게 떠오르는 Fade-in CSS 주입
-st.markdown("""
-<style>
-@keyframes fadeIn {
-    from { 
-        opacity: 0; 
-        transform: translateY(20px); 
-    }
-    to { 
-        opacity: 1; 
-        transform: translateY(0); 
-    }
-}
-/* Streamlit 메인 컨테이너에 애니메이션 적용 */
-.block-container {
-    animation: fadeIn 1.2s ease-out forwards;
-}
-</style>
-""", unsafe_allow_html=True)
 
 # ----------------------------------------------------
 # 2. 데이터 로드 및 전처리
@@ -119,7 +99,7 @@ with col2:
 
 st.divider()
 
-# 시각화 영역 (Plotly 적용)
+# 시각화 영역 (Plotly 적용 및 호버 라벨 디자인 개선)
 col3, col4 = st.columns([1.2, 1])
 
 with col3:
@@ -140,7 +120,17 @@ with col3:
         fig_heat.update_traces(
             hovertemplate="<b>국가명:</b> %{y}<br><b>연도:</b> %{x}<br><b>무역액:</b> $%{z:,.0f}<extra></extra>"
         )
-        fig_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0))
+        
+        # 툴팁 디자인 은은하게(반투명 배경, 테두리 제거) 적용
+        fig_heat.update_layout(
+            margin=dict(l=0, r=0, t=10, b=0),
+            hoverlabel=dict(
+                bgcolor="rgba(255, 255, 255, 0.85)", 
+                font_size=13,
+                font_color="#333333",
+                bordercolor="rgba(255, 255, 255, 0)"
+            )
+        )
         st.plotly_chart(fig_heat, use_container_width=True)
     else:
         st.info("조건에 맞는 데이터가 부족합니다.")
@@ -170,10 +160,17 @@ with col4:
             font=dict(size=16)
         )
         
+        # 툴팁 디자인 은은하게 적용
         fig_pie.update_layout(
             margin=dict(l=0, r=0, t=10, b=0),
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5) 
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+            hoverlabel=dict(
+                bgcolor="rgba(255, 255, 255, 0.85)", 
+                font_size=13,
+                font_color="#333333",
+                bordercolor="rgba(255, 255, 255, 0)"
+            )
         )
         st.plotly_chart(fig_pie, use_container_width=True)
     else:
