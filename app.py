@@ -5,9 +5,29 @@ import plotly.express as px
 from pathlib import Path
 
 # ----------------------------------------------------
-# 1. 기본 설정
+# 1. 기본 설정 및 Fade-in 애니메이션 적용
 # ----------------------------------------------------
 st.set_page_config(page_title="무역 분석 대시보드", page_icon="🚢", layout="wide")
+
+# 부드럽게 떠오르는 Fade-in CSS 주입
+st.markdown("""
+<style>
+@keyframes fadeIn {
+    from { 
+        opacity: 0; 
+        transform: translateY(20px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
+}
+/* Streamlit 메인 컨테이너에 애니메이션 적용 */
+.block-container {
+    animation: fadeIn 1.2s ease-out forwards;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ----------------------------------------------------
 # 2. 데이터 로드 및 전처리
@@ -110,7 +130,6 @@ with col3:
     if not heatmap_data.empty and 't' in heatmap_data.columns:
         pivot_heat = heatmap_data.pivot_table(index='exporter_name', columns='t', values='v', aggfunc='sum', fill_value=0)
         
-        # Plotly 인터랙티브 히트맵 생성
         fig_heat = px.imshow(
             pivot_heat, 
             color_continuous_scale='Blues',
@@ -118,7 +137,6 @@ with col3:
             labels=dict(x="연도", y="국가명", color="무역액(USD)")
         )
         
-        # 마우스 오버 툴팁 포맷 설정
         fig_heat.update_traces(
             hovertemplate="<b>국가명:</b> %{y}<br><b>연도:</b> %{x}<br><b>무역액:</b> $%{z:,.0f}<extra></extra>"
         )
@@ -134,7 +152,6 @@ with col4:
         
         blue_palette = ['#08519c', '#3182bd', '#9ecae1'] 
         
-        # Plotly 인터랙티브 도넛 차트 생성
         fig_pie = px.pie(
             names=grade_counts.index,
             values=grade_counts.values,
@@ -142,13 +159,11 @@ with col4:
             color_discrete_sequence=blue_palette
         )
         
-        # 정적 텍스트 숨기기 및 마우스 오버 툴팁 포맷 설정
         fig_pie.update_traces(
-            textinfo='none', # 조잡하게 보이는 고정 숫자 텍스트 숨김
+            textinfo='none', 
             hovertemplate="<b>등급:</b> %{label}<br><b>건수:</b> %{value:,.0f}건<br><b>비율:</b> %{percent}<extra></extra>"
         )
         
-        # 도넛 중앙에 총 건수 추가
         fig_pie.add_annotation(
             text=f"<b>총 {int(grade_counts.sum()):,}건</b>", 
             showarrow=False, 
@@ -158,7 +173,7 @@ with col4:
         fig_pie.update_layout(
             margin=dict(l=0, r=0, t=10, b=0),
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5) # 범례를 하단으로 이동해 깔끔하게 배치
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5) 
         )
         st.plotly_chart(fig_pie, use_container_width=True)
     else:
