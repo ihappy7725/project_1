@@ -1,45 +1,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-import seaborn as sns
-import platform
-import os
-import urllib.request
+import plotly.express as px
 from pathlib import Path
 
 # ----------------------------------------------------
-# 1. 기본 설정 및 테마/폰트 적용
+# 1. 기본 설정
 # ----------------------------------------------------
 st.set_page_config(page_title="무역 분석 대시보드", page_icon="🚢", layout="wide")
-
-@st.cache_resource
-def get_korean_font():
-    system_name = platform.system()
-    if system_name == 'Windows':
-        return 'Malgun Gothic'
-    elif system_name == 'Darwin':
-        return 'AppleGothic'
-    else:
-        nanum_fonts = [f.name for f in fm.fontManager.ttflist if 'Nanum' in f.name]
-        if nanum_fonts:
-            return nanum_fonts[0]
-        else:
-            font_path = "NanumGothic.ttf"
-            if not os.path.exists(font_path):
-                url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
-                urllib.request.urlretrieve(url, font_path)
-            fm.fontManager.addfont(font_path)
-            return fm.FontProperties(fname=font_path).get_name()
-
-font_name = get_korean_font()
-
-# 차분한 디자인을 위한 테마 및 폰트 설정
-sns.set_theme(
-    style="white", 
-    rc={"font.family": font_name, "axes.unicode_minus": False}
-)
 
 # ----------------------------------------------------
 # 2. 데이터 로드 및 전처리
@@ -131,7 +99,7 @@ with col2:
 
 st.divider()
 
-# 시각화 영역 
+# 시각화 영역 (Plotly 적용)
 col3, col4 = st.columns([1.2, 1])
 
 with col3:
@@ -142,16 +110,20 @@ with col3:
     if not heatmap_data.empty and 't' in heatmap_data.columns:
         pivot_heat = heatmap_data.pivot_table(index='exporter_name', columns='t', values='v', aggfunc='sum', fill_value=0)
         
-        fig, ax = plt.subplots(figsize=(8, 6))
+        # Plotly 인터랙티브 히트맵 생성
+        fig_heat = px.imshow(
+            pivot_heat, 
+            color_continuous_scale='Blues',
+            aspect="auto",
+            labels=dict(x="연도", y="국가명", color="무역액(USD)")
+        )
         
-        # 차분한 블루톤(Blues) 히트맵 적용
-        sns.heatmap(pivot_heat, annot=True, fmt=".0f", cmap="Blues", ax=ax, 
-                    linewidths=0.5, cbar_kws={"shrink": 0.8})
-        
-        ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
-        ax.set_ylabel("") 
-        ax.set_xlabel("연도", labelpad=10)
-        st.pyplot(fig)
+        # 마우스 오버 툴팁 포맷 설정
+        fig_heat.update_traces(
+            hovertemplate="<b>국가명:</b> %{y}<br><b>연도:</b> %{x}<br><b>무역액:</b> $%{z:,.0f}<extra></extra>"
+        )
+        fig_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0))
+        st.plotly_chart(fig_heat, use_container_width=True)
     else:
         st.info("조건에 맞는 데이터가 부족합니다.")
 
@@ -160,25 +132,35 @@ with col4:
     if not filtered_df.empty:
         grade_counts = filtered_df['trade_grade'].value_counts().reindex(['대', '중', '소']).fillna(0)
         
-        fig, ax = plt.subplots(figsize=(6, 6))
-        
-        # 세련된 네이비/블루 그라데이션 팔레트
         blue_palette = ['#08519c', '#3182bd', '#9ecae1'] 
         
-        wedges, texts, autotexts = ax.pie(
-            grade_counts.values, 
-            labels=grade_counts.index, 
-            autopct='%1.1f%%', 
-            startangle=140, 
-            colors=blue_palette,
-            pctdistance=0.75,
-            textprops={'fontsize': 12, 'weight': 'bold'},
-            wedgeprops={'edgecolor': 'white', 'linewidth': 2, 'width': 0.4}
+        # Plotly 인터랙티브 도넛 차트 생성
+        fig_pie = px.pie(
+            names=grade_counts.index,
+            values=grade_counts.values,
+            hole=0.45,
+            color_discrete_sequence=blue_palette
         )
         
-        ax.text(0, 0, f"총 {int(grade_counts.sum()):,}건", ha='center', va='center', fontsize=13, fontweight='bold')
+        # 정적 텍스트 숨기기 및 마우스 오버 툴팁 포맷 설정
+        fig_pie.update_traces(
+            textinfo='none', # 조잡하게 보이는 고정 숫자 텍스트 숨김
+            hovertemplate="<b>등급:</b> %{label}<br><b>건수:</b> %{value:,.0f}건<br><b>비율:</b> %{percent}<extra></extra>"
+        )
         
-        st.pyplot(fig)
+        # 도넛 중앙에 총 건수 추가
+        fig_pie.add_annotation(
+            text=f"<b>총 {int(grade_counts.sum()):,}건</b>", 
+            showarrow=False, 
+            font=dict(size=16)
+        )
+        
+        fig_pie.update_layout(
+            margin=dict(l=0, r=0, t=10, b=0),
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5) # 범례를 하단으로 이동해 깔끔하게 배치
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
     else:
         st.info("조건에 맞는 데이터가 부족합니다.")
 
@@ -197,7 +179,6 @@ if not cross_data.empty:
     
     with col5:
         st.markdown("**1. 원본 거래건수** (단위: 건)")
-        # 데이터프레임 배경에 블루톤 그라데이션 추가로 시각적 효과 강화
         st.dataframe(ct_counts.style.background_gradient(cmap='Blues', axis=None), use_container_width=True)
         
     with col6:
